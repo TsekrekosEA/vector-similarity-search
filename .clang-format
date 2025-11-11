@@ -1,0 +1,36 @@
+# Based on the LLVM style, with some common modifications for readability.
+
+Language: Cpp
+BasedOnStyle: LLVM
+
+# --- Indentation ---
+IndentWidth: 4
+UseTab: Never
+TabWidth: 4
+
+# --- Braces and Whitespace ---
+BreakBeforeBraces: Attach  # Attach braces to functions, classes, etc. (e.g., myFunction() {)
+AllowShortFunctionsOnASingleLine: None # Don't allow short functions like `int f() { return 1; }` on one line.
+
+# --- Line Breaking and Wrapping ---
+ColumnLimit: 100            # Break lines that are longer than 100 characters.
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# --- Pointer and Reference Alignment ---
+# Align pointers and references to the type (e.g., int* x)
+# This is a common point of debate, other options are Right and Middle.
+PointerAlignment: Left
+
+# --- Includes ---
+SortIncludes: true
+
+# --- Spacing ---
+SpaceBeforeParens: ControlStatements # Add a space for `if (`, `for (`, `while (`
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# --- Other ---
+FixNamespaceComments: true

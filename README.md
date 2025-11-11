@@ -1,19 +1,32 @@
-# Approximate Nearest Neighbor Search
+# High-Performance Approximate Nearest Neighbor Search Engine
 
-Implementation and benchmarking of several approximate nearest neighbor (ANN) search algorithms in C++. This project evaluates the performance of LSH, Hypercube, IVF-Flat, and 
-IVF-PQ against a brute-force exact search on the MNIST and SIFT datasets.
+This project is a C++17 implementation of a high-performance vector similarity search engine, built entirely from scratch. It provides a framework for indexing and searching through millions of high-dimensional vectors using several state-of-the-art Approximate Nearest Neighbor (ANN) algorithms.
+
+The engine is benchmarked on standard industry datasets, **SIFT1M** (1 million 128-D float vectors) and **MNIST** (60,000 784-D unsigned char vectors), to scientifically evaluate the performance and accuracy trade-offs of each implemented technique.
+
+![alt text](results/MNIST_recall_vs_speedup.png)
+
+## Project Highlights
+
+-   **Algorithms Implemented from Scratch:**:
+    -   **LSH (Locality-Sensitive Hashing):** Using random projections and an efficient single-integer key scheme.
+    -   **Hypercube LSH:** A high-performance implementation using `uint64_t` keys and a multi-probe BFS search strategy.
+    -   **IVF-Flat (Inverted File):** A partition-based index built on a custom k-means implementation.
+    -   **IVF-PQ (Inverted File with Product Quantization):** An advanced index combining IVF with vector compression for massive memory savings and accelerated search via Asymmetric Distance Computation (ADC).
+
+-   **High-Performance C++ Design:** The codebase emphasizes modern C++ best practices for speed and safety.
+    -   **Cache-Friendly Data Structures:** Utilizes a custom `Matrix` class with a contiguous memory layout to maximize cache locality and processing speed.
+    -   **Template-Based Genericity:** The entire system is generic, supporting both `float` and `uint8_t` data types without code duplication.
+    -   **RAII and Smart Pointers:** Ensures robust, leak-free memory management.
+
+-   **Scientific Benchmarking & Analysis:** The project includes a comprehensive C++ benchmarking harness and Python visualization scripts to produce detailed performance reports.
+    -   **Key Metrics:** Gathers crucial metrics like Recall@N, Queries Per Second (QPS), and Average Approximation Factor (AF).
+    -   **Data-Driven Insights:** The generated plots provide a clear, empirical analysis of the speed vs. accuracy trade-offs for each algorithm on different types of data.
 
 ## Creators
-Τσεκρέκος ΄Εγκορ-Ανδριανός, sdi2300203
-Δημακόπουλος Θεόδωρος, sdi1900048
 
-## Algorithms Implemented
-
--   **Brute Force:** Exact nearest neighbor search for ground truth generation.
--   **LSH (Locality-Sensitive Hashing):** Hash-based approximate search using random projections.
--   **Hypercube:** Binary hypercube projection with BFS-based vertex exploration.
--   **IVF-Flat:** Inverted file index with k-means clustering, storing full vectors.
--   **IVF-PQ:** Inverted file with product quantization for memory-efficient compressed search.
+- Τσεκρέκος ΄Εγκορ-Ανδριανός,
+- Δημακόπουλος Θεόδωρος
 
 ## Project Structure
 
@@ -107,4 +120,3 @@ The `bin/benchmark` program runs a full parameter sweep for all algorithms and g
 -   **Average AF:** Quality metric. Average ratio of approximate distance to true distance. (Lower is better, 1.0 is perfect).
 -   **Speedup:** Performance metric. How many times faster the algorithm is than brute-force. (Higher is better).
 -   **QPS (Queries Per Second):** Throughput metric. (Higher is better).
-```
