@@ -1,52 +1,57 @@
 # High-Performance Approximate Nearest Neighbor Search Engine
 
-This project is a C++17 implementation of a high-performance vector similarity search engine, built entirely from scratch. It provides a framework for indexing and searching through millions of high-dimensional vectors using several state-of-the-art Approximate Nearest Neighbor (ANN) algorithms.
+A C++17 implementation of a high-performance vector similarity search engine, built entirely from scratch. This project provides a framework for indexing and searching through millions of high-dimensional vectors using several state-of-the-art Approximate Nearest Neighbor (ANN) algorithms.
 
-The engine is benchmarked on standard industry datasets, **SIFT1M** (1 million 128-D float vectors) and **MNIST** (60,000 784-D unsigned char vectors), to scientifically evaluate the performance and accuracy trade-offs of each implemented technique.
+The engine is benchmarked on standard industry datasets, **SIFT1M** (1 million 128-D float vectors) and **MNIST** (60,000 784-D `uint8_t` vectors), to scientifically evaluate the performance and accuracy trade-offs of each implemented technique.
 
-![alt text](results/MNIST_recall_vs_speedup.png)
+![MNIST Recall vs Speedup](images/MNIST_recall_vs_speedup.png)
+*Figure 1: Recall vs. Speedup comparison for all implemented algorithms on the MNIST dataset.*
+
+![SIFT Recall vs Speedup](images/SIFT_recall_vs_speedup.png)
+*Figure 2: Recall vs. Speedup comparison for all implemented algorithms on the SIFT1M dataset.*
+---
+
+## Table of Contents
+- [Project Highlights](#project-highlights)
+- [Project Structure](#project-structure)
+- [Setup and Building](#setup-and-building)
+- [Usage](#usage)
+- [Benchmarking & Visualization](#benchmarking--visualization)
+- [Performance Metrics](#performance-metrics)
+- [Authors](#authors)
+
+---
 
 ## Project Highlights
 
--   **Algorithms Implemented from Scratch:**:
+-   **Algorithms Implemented from Scratch:** 
     -   **LSH (Locality-Sensitive Hashing):** Using random projections and an efficient single-integer key scheme.
     -   **Hypercube LSH:** A high-performance implementation using `uint64_t` keys and a multi-probe BFS search strategy.
-    -   **IVF-Flat (Inverted File):** A partition-based index built on a custom k-means implementation.
+    -   **IVF-Flat (Inverted File):** A partition-based index built on a custom, optimized k-means implementation.
     -   **IVF-PQ (Inverted File with Product Quantization):** An advanced index combining IVF with vector compression for massive memory savings and accelerated search via Asymmetric Distance Computation (ADC).
 
--   **High-Performance C++ Design:** The codebase emphasizes modern C++ best practices for speed and safety.
+-   **High-Performance C++ Design:** The codebase emphasizes modern C++17 best practices for speed and safety.
     -   **Cache-Friendly Data Structures:** Utilizes a custom `Matrix` class with a contiguous memory layout to maximize cache locality and processing speed.
     -   **Template-Based Genericity:** The entire system is generic, supporting both `float` and `uint8_t` data types without code duplication.
     -   **RAII and Smart Pointers:** Ensures robust, leak-free memory management.
 
--   **Scientific Benchmarking & Analysis:** The project includes a comprehensive C++ benchmarking harness and Python visualization scripts to produce detailed performance reports.
+-   **Scientific Benchmarking & Analysis:** Includes a comprehensive C++ benchmarking harness and Python visualization scripts to produce detailed performance reports.
     -   **Key Metrics:** Gathers crucial metrics like Recall@N, Queries Per Second (QPS), and Average Approximation Factor (AF).
-    -   **Data-Driven Insights:** The generated plots provide a clear, empirical analysis of the speed vs. accuracy trade-offs for each algorithm on different types of data.
+    -   **Data-Driven Insights:** The generated plots provide a clear, empirical analysis of the speed vs. accuracy trade-offs.
 
-## Creators
-
-- Τσεκρέκος ΄Εγκορ-Ανδριανός,
-- Δημακόπουλος Θεόδωρος
+---
 
 ## Project Structure
-
+```.
+├── Makefile          # Build system for main program and benchmarks
+├── README.md         # This file
+├── scripts/          # Helper scripts for downloading data
+├── src/              # Source files (.cpp) for all algorithms and utilities
+├── include/          # Header files (.hpp) for all modules
+├── data/             # Datasets (git-ignored)
+├── output/           # Individual algorithm output files (git-ignored)
+└── results/          # Benchmark CSVs and generated plots (git-ignored)
 ```
-.
-├── Makefile
-├── README.md
-├── src/
-│   ├── main.cpp
-│   ├── benchmark.cpp
-│   ├── lsh.cpp, hypercube.cpp, ivfflat.cpp, ivfpq.cpp, brute_force.cpp
-│   └── ... (utility files)
-├── include/
-│   ├── lsh.hpp, hypercube.hpp, ivfflat.hpp, ivfpq.hpp, brute_force.hpp
-│   └── ... (utility headers)
-├── data/         # Datasets (git-ignored)
-├── output/       # Algorithm output files (git-ignored)
-└── results/      # Benchmark CSVs and plots (git-ignored)
-```
-
 ---
 
 ## Setup and Building
@@ -55,18 +60,20 @@ The engine is benchmarked on standard industry datasets, **SIFT1M** (1 million 1
 -   C++ compiler with C++17 support (e.g., `g++` or `clang++`)
 -   `make`
 -   `wget` and `tar`
+-   Python 3 with `pandas` and `matplotlib` (for visualization)
 
 #### 1. Download Datasets
-The datasets are not included in the repository.
+The algorithms are generic and can work with any dataset in the appropriate binary format. The scripts below download the specific **SIFT1M** and **MNIST** datasets used for the benchmarks presented in this project.
 
-**SIFT1M:**
+**SIFT1M Dataset:**
 ```bash
-wget ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz -O data/sift.tar.gz
-cd data && tar -zxvf sift.tar.gz && cd ..
+./scripts/download_sift.sh
 ```
 
-**MNIST:**
-Download the four `.idx-ubyte` files from [this repository](https://github.com/mrgloom/MNIST-dataset-in-different-formats/tree/master/data/Original%20dataset) and place them in the `data/mnist/` directory.
+**MNIST Dataset:**
+```bash
+./scripts/download_mnist.sh
+```
 
 #### 2. Build
 ```bash
@@ -74,7 +81,7 @@ Download the four `.idx-ubyte` files from [this repository](https://github.com/m
 make
 
 # Build the benchmarking harness (bin/benchmark)
-make bin/benchmark
+make benchmark
 
 # Clean all compiled files
 make clean
@@ -84,39 +91,54 @@ make clean
 ## Usage
 
 ### Basic Search
-The main program `bin/search` is used for running a single algorithm configuration.
+The `bin/search` program can run any implemented algorithm on a compatible dataset.
 
 **Syntax:**
 ```bash
-./bin/search -<algorithm> -d <input> -q <query> -o <output> [parameters...]
+./bin/search -<alg> -d <input_file> -q <query_file> -o <output_file> [parameters...]
 ```
--   **Common Parameters:** `-N <int>`, `-R <float>`, `-type <mnist|sift>`
+-   **Common:** `-N <int>`, `-R <float>`, `-type <mnist|sift>`
 -   **Algorithm Flags:** `-lsh`, `-hypercube`, `-ivfflat`, `-ivfpq`
 
-**Example (Hypercube on MNIST):**
+**Example (IVF-Flat on the SIFT1M benchmark dataset):**
 ```bash
-./bin/search -hypercube -d data/mnist/train-images.idx3-ubyte \
-    -q data/mnist/t10k-images.idx3-ubyte -o output/hypercube.txt \
-    -type mnist -kproj 14 -M 1000 -probes 50 -N 10 -range false
+./bin/search -ivfflat -d data/sift/sift_base.fvecs \
+    -q data/sift/sift_query.fvecs -o output/ivfflat_sift.txt \
+    -type sift -k_clusters 256 -nprobe 4 -N 10
 ```
+---
 
-### Benchmarking
-The `bin/benchmark` program runs a full parameter sweep for all algorithms and generates CSV files in the `results/` directory.
+## Benchmarking & Visualization
 
-**Run Benchmarks:**
+The `bin/benchmark` program runs a full parameter sweep on the included SIFT1M and MNIST datasets to generate the performance data. The `plot_results.py` script visualizes this data.
+
+**1. Run Benchmarks:**
 ```bash
-# Run sweeps for all algorithms (this may take a long time)
+# Run sweeps for all algorithms on the default datasets
 ./bin/benchmark
 
-# Run for a specific algorithm
-./bin/benchmark --lsh-only
+# Or run for a specific algorithm
+./bin/benchmark --ivfflat-only
 ```
+
+**2. Generate Plots:**
+```bash
+python3 plot_results.py
+```
+This script reads the benchmark CSVs from `results/` and saves comprehensive comparison plots to the same directory.
 
 ---
 
 ## Performance Metrics
 
--   **Recall@N:** Accuracy metric. Fraction of queries where the true #1 neighbor is found. (Higher is better).
+-   **Recall@N:** Accuracy metric. Fraction of queries where the true #1 nearest neighbor is found. (Higher is better).
 -   **Average AF:** Quality metric. Average ratio of approximate distance to true distance. (Lower is better, 1.0 is perfect).
 -   **Speedup:** Performance metric. How many times faster the algorithm is than brute-force. (Higher is better).
 -   **QPS (Queries Per Second):** Throughput metric. (Higher is better).
+
+---
+
+## Authors
+
+-   Egor-Andrianos Tsekrekos
+-   Theodoros Dimakopoulos
