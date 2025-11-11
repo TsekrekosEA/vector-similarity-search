@@ -10,12 +10,12 @@ Argument parsing should be re-written.
 */
 
 // can exit(-1)
-char *get_algorithm_argument(int argc, char **argv);
+char* get_algorithm_argument(int argc, char** argv);
 
 // setting the structs below to zero marks all the fields as unset
 
 enum ImageType {
-    IMG_UNSET,  // ignore, as a user
+    IMG_UNSET, // ignore, as a user
     IMG_SIFT,
     IMG_MNIST
 };
@@ -26,7 +26,7 @@ struct AlgorithmIndependentArguments {
     int radius;
     ImageType image_type;
     bool search_for_range;
-    bool range_bool_has_been_set;  // ignore, as a user
+    bool range_bool_has_been_set; // ignore, as a user
 };
 
 struct LshArguments {
@@ -39,7 +39,7 @@ struct LshArguments {
 struct HypercubeArguments {
     AlgorithmIndependentArguments common;
     int kproj, M, probes;
-    double w;  // accepted per PDF spec but not used in implementation
+    double w; // accepted per PDF spec but not used in implementation
     int seed;
 };
 
@@ -58,8 +58,8 @@ struct BruteforceArguments {
     double fraction_of_pixels;
 };
 
-void parse_lsh_arguments(LshArguments *a, int argc, char **argv);
-void parse_hypercube_arguments(HypercubeArguments *a, int argc, char **argv);
-void parse_ivfflat_arguments(IvfflatArguments *a, int argc, char **argv);
-void parse_ivfpq_arguments(IvfpqArguments *a, int argc, char **argv);
-void parse_bruteforce_arguments(BruteforceArguments *a, int argc, char **argv);
+void parse_lsh_arguments(LshArguments* a, int argc, char** argv);
+void parse_hypercube_arguments(HypercubeArguments* a, int argc, char** argv);
+void parse_ivfflat_arguments(IvfflatArguments* a, int argc, char** argv);
+void parse_ivfpq_arguments(IvfpqArguments* a, int argc, char** argv);
+void parse_bruteforce_arguments(BruteforceArguments* a, int argc, char** argv);

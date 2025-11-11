@@ -1,9 +1,9 @@
+#include "file_io.hpp"
 #include <fstream>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <memory>
 #include <vector>
-#include "file_io.hpp"
 
 // standard function to swap endianess, assumes Little-Endian System Execution
 inline uint32_t swap_endian(uint32_t val) {
@@ -11,9 +11,11 @@ inline uint32_t swap_endian(uint32_t val) {
     return (val << 16) | (val >> 16);
 }
 
-std::string filepath = "data/query.dat";  // note: it's overriden in the functions
+std::string filepath = "data/query.dat"; // note: it's overriden in the functions
 
-static std::unique_ptr<Matrix<unsigned char>> load_mnist_data_backend(const std::string& filepath, uint32_t first_n_images, bool should_truncate){
+static std::unique_ptr<Matrix<unsigned char>> load_mnist_data_backend(const std::string& filepath,
+                                                                      uint32_t first_n_images,
+                                                                      bool should_truncate) {
     // open file in binary mode
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) {
@@ -29,7 +31,7 @@ static std::unique_ptr<Matrix<unsigned char>> load_mnist_data_backend(const std:
     file.read(reinterpret_cast<char*>(&num_rows), sizeof(uint32_t));
     file.read(reinterpret_cast<char*>(&num_cols), sizeof(uint32_t));
 
-    // assuming program is run on a little-endian machine which most modern computers are, 
+    // assuming program is run on a little-endian machine which most modern computers are,
     // swap Big-endian format of mnist file type to little-endian
     magic_number = swap_endian(magic_number);
     num_images = swap_endian(num_images);
@@ -38,15 +40,16 @@ static std::unique_ptr<Matrix<unsigned char>> load_mnist_data_backend(const std:
 
     // perhaps truncate the images
     if (should_truncate) {
-        if (first_n_images > num_images) first_n_images = num_images;
-    }
-    else {
+        if (first_n_images > num_images)
+            first_n_images = num_images;
+    } else {
         first_n_images = num_images;
     }
 
     // Check to make sure file passed really is mnist
     if (magic_number != 2051) {
-        std::cerr << "Error: Invalid MNIST image file. Incorrect magic number: " << magic_number << std::endl;
+        std::cerr << "Error: Invalid MNIST image file. Incorrect magic number: " << magic_number
+                  << std::endl;
         return nullptr;
     }
 
@@ -56,7 +59,8 @@ static std::unique_ptr<Matrix<unsigned char>> load_mnist_data_backend(const std:
     // allocate a single, flat block of memory for the entire image dataset
     auto dataset_matrix = std::make_unique<Matrix<unsigned char>>(first_n_images, dimensions);
 
-    // using the metadata found in beginning of mnist file, calculate total required amount of bytes to read
+    // using the metadata found in beginning of mnist file, calculate total required amount of bytes
+    // to read
     size_t total_bytes = first_n_images * dimensions * sizeof(unsigned char);
     // returning a raw pointer to the beginning of our Matrix's vector, write all the data bytes
     file.read(reinterpret_cast<char*>(dataset_matrix->get_raw_data().data()), total_bytes);
@@ -66,7 +70,7 @@ static std::unique_ptr<Matrix<unsigned char>> load_mnist_data_backend(const std:
         return nullptr;
     }
 
-    std::cout << "Successfully loaded " << dataset_matrix->get_rows() << " MNIST images (" 
+    std::cout << "Successfully loaded " << dataset_matrix->get_rows() << " MNIST images ("
               << dataset_matrix->get_cols() << " dimensions)." << std::endl;
 
     // return the unique pointer to our raw data, preventing needless copying
@@ -74,14 +78,16 @@ static std::unique_ptr<Matrix<unsigned char>> load_mnist_data_backend(const std:
     return dataset_matrix;
 }
 
-std::unique_ptr<Matrix<unsigned char>> load_mnist_data(const std::string& filepath){
+std::unique_ptr<Matrix<unsigned char>> load_mnist_data(const std::string& filepath) {
     return load_mnist_data_backend(filepath, 0, false);
 }
-std::unique_ptr<Matrix<unsigned char>> load_mnist_data_truncated(const std::string& filepath, uint32_t first_n){
+std::unique_ptr<Matrix<unsigned char>> load_mnist_data_truncated(const std::string& filepath,
+                                                                 uint32_t first_n) {
     return load_mnist_data_backend(filepath, first_n, true);
 }
 
-static std::unique_ptr<Matrix<float>> load_sift_data_backend(const std::string& filepath, uint32_t first_n_images, bool should_truncate){
+static std::unique_ptr<Matrix<float>>
+load_sift_data_backend(const std::string& filepath, uint32_t first_n_images, bool should_truncate) {
     std::ifstream file(filepath, std::ios::binary);
     if (!file.is_open()) {
         std::cerr << "Error: Could not open SIFT file: " << filepath << std::endl;
@@ -90,7 +96,8 @@ static std::unique_ptr<Matrix<float>> load_sift_data_backend(const std::string& 
 
     // the .fvecs file does not have a header with total number of vectors,
     // so we read vector by vector because each vector is prefixed by it's dimension
-    // we read into a temporaray vector, because we do not know the size of the file, until we finsh reading
+    // we read into a temporaray vector, because we do not know the size of the file, until we finsh
+    // reading
     std::vector<std::vector<float>> temp_data;
     int dimension = -1;
 
@@ -117,9 +124,10 @@ static std::unique_ptr<Matrix<float>> load_sift_data_backend(const std::string& 
             std::cerr << "Error: Incomplete vector read from SIFT file." << std::endl;
             return nullptr;
         }
-        
+
         temp_data.push_back(vec);
-        if (should_truncate && --first_n_images == 0) break;
+        if (should_truncate && --first_n_images == 0)
+            break;
     }
 
     if (temp_data.empty()) {
@@ -138,20 +146,18 @@ static std::unique_ptr<Matrix<float>> load_sift_data_backend(const std::string& 
         }
     }
 
-    std::cout << "Successfully loaded " << dataset_matrix->get_rows() << " SIFT vectors (" 
+    std::cout << "Successfully loaded " << dataset_matrix->get_rows() << " SIFT vectors ("
               << dataset_matrix->get_cols() << " dimensions)." << std::endl;
 
     return dataset_matrix;
 }
-std::unique_ptr<Matrix<float>> load_sift_data(const std::string& filepath){
+std::unique_ptr<Matrix<float>> load_sift_data(const std::string& filepath) {
     return load_sift_data_backend(filepath, 0, false);
 }
-std::unique_ptr<Matrix<float>> load_sift_data_truncated(const std::string& filepath, uint32_t first_n){
+std::unique_ptr<Matrix<float>> load_sift_data_truncated(const std::string& filepath,
+                                                        uint32_t first_n) {
     return load_sift_data_backend(filepath, first_n, true);
 }
-
-
-
 
 std::unique_ptr<std::ofstream> initialize_output_file(const std::string& filepath) {
     auto out_file = std::make_unique<std::ofstream>(filepath);
@@ -178,7 +184,8 @@ void write_output(std::ofstream& out, const Output& output_data) {
         auto query_result = output_data.queries[query_id];
         out << "Query: " << query_id << std::endl;
 
-        // Loop through the N nearest neighbors (PDF format: no separate "True Nearest neighbor" line)
+        // Loop through the N nearest neighbors (PDF format: no separate "True Nearest neighbor"
+        // line)
         for (size_t i = 0; i < query_result.nearest_neighbors.size(); ++i) {
             const auto& neighbor = query_result.nearest_neighbors[i];
             out << "Nearest neighbor-" << i + 1 << ": " << neighbor.id << std::endl;
@@ -193,7 +200,7 @@ void write_output(std::ofstream& out, const Output& output_data) {
                 out << r_neighbor_id << std::endl;
             }
         }
-        
+
         out << std::endl;
     }
 

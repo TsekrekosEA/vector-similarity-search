@@ -1,19 +1,21 @@
-#include <lsh.hpp>
-#include <utils.hpp>
-#include <iostream>
 #include <cmath>
+#include <iostream>
+#include <lsh.hpp>
 #include <unordered_set>
+#include <utils.hpp>
 
-template<typename T>
-int lsh_base_hash(const std::vector<float>& random_line, const T* data_point, size_t dim, float t, float w) {
+template <typename T>
+int lsh_base_hash(const std::vector<float>& random_line, const T* data_point, size_t dim, float t,
+                  float w) {
     double dot_product = 0.0;
     for (size_t i = 0; i < dim; ++i) {
         dot_product += static_cast<double>(random_line[i]) * static_cast<double>(data_point[i]);
     }
-    return static_cast<int>(std::floor((dot_product + static_cast<double>(t)) / static_cast<double>(w)));
+    return static_cast<int>(
+        std::floor((dot_product + static_cast<double>(t)) / static_cast<double>(w)));
 }
 
-template<typename T>
+template <typename T>
 SuperHash<T>::SuperHash(int k, size_t vector_dimension, float w_input, std::mt19937& gen)
     : w(w_input) {
     // Reserve space for efficiency
@@ -35,12 +37,11 @@ SuperHash<T>::SuperHash(int k, size_t vector_dimension, float w_input, std::mt19
 }
 
 // This function takes a data point and applies the k stored hash functions to it.
-template<typename T>
-long long SuperHash<T>::get_hash_key(const T* data_point, size_t dim) const {
+template <typename T> long long SuperHash<T>::get_hash_key(const T* data_point, size_t dim) const {
     long long combined_hash = 0;
     for (size_t i = 0; i < random_lines.size(); ++i) {
         int h_value = lsh_base_hash(random_lines[i], data_point, dim, offsets[i], w);
-        
+
         // Combine using the random linear combination. Cast to long long to prevent overflow.
         combined_hash += static_cast<long long>(r_values[i]) * h_value;
     }
@@ -51,7 +52,7 @@ long long SuperHash<T>::get_hash_key(const T* data_point, size_t dim) const {
 }
 
 // LSH_Index Implementation
-template<typename T>
+template <typename T>
 LSH_Index<T>::LSH_Index(int L_input, int k_input, float w_input, int dimensions, std::uint32_t seed)
     : L(L_input) {
     std::cout << "Initializing LSH Index with L=" << L_input << ", k=" << k_input << std::endl;
@@ -67,14 +68,13 @@ LSH_Index<T>::LSH_Index(int L_input, int k_input, float w_input, int dimensions,
     tables.resize(L);
 }
 
-template<typename T>
-void LSH_Index<T>::build(const Matrix<T>& dataset) {
+template <typename T> void LSH_Index<T>::build(const Matrix<T>& dataset) {
     std::cout << "Building LSH index for " << dataset.get_rows() << " points..." << std::endl;
 
     // Outer loop: Iterate through each of the L hash table systems
     for (int i = 0; i < L; ++i) {
         std::cout << "  Populating table " << i + 1 << "/" << L << "..." << std::endl;
-        
+
         // Inner loop: Iterate through every point in the dataset
         for (size_t j = 0; j < dataset.get_rows(); ++j) {
             const T* row_ptr = dataset.get_row(j);
@@ -87,9 +87,10 @@ void LSH_Index<T>::build(const Matrix<T>& dataset) {
 }
 
 // Returns a vector of id's of points in the dataset
-template<typename T>
+template <typename T>
 std::vector<int> LSH_Index<T>::get_candidates(const T* query_point, size_t dim) const {
-    // Use an unordered_set to collect unique candidate point IDs from all L tables, avoid duplicates from different superhashes
+    // Use an unordered_set to collect unique candidate point IDs from all L tables, avoid
+    // duplicates from different superhashes
     std::unordered_set<int> candidates_set;
     // Query each of the L hash tables
     for (int i = 0; i < L; ++i) {
@@ -97,7 +98,7 @@ std::vector<int> LSH_Index<T>::get_candidates(const T* query_point, size_t dim) 
         long long key = hash_functions[i].get_hash_key(query_point, dim);
         // Look up this key in the i-th hash table
         auto it = tables[i].find(key);
-        
+
         // If the key exists in the table, add all point IDs in that bucket to our candidates
         if (it != tables[i].end()) {
             const std::vector<int>& bucket = it->second;
@@ -109,35 +110,29 @@ std::vector<int> LSH_Index<T>::get_candidates(const T* query_point, size_t dim) 
     return candidates;
 }
 
-template<typename T>
-std::vector<ANearNeighbor> LSH_Index<T>::find_k_nearest(const T* query_point, const Matrix<T>& dataset, int N) const {
+template <typename T>
+std::vector<ANearNeighbor> LSH_Index<T>::find_k_nearest(const T* query_point,
+                                                        const Matrix<T>& dataset, int N) const {
     std::vector<int> candidate_ids = get_candidates(query_point, dataset.get_cols());
     return find_k_nearest_from_candidates(candidate_ids, query_point, dataset, N);
 }
 
-template<typename T>
-std::vector<ImageId> LSH_Index<T>::find_in_range(const T* query_point, const Matrix<T>& dataset, double R) const {
+template <typename T>
+std::vector<ImageId> LSH_Index<T>::find_in_range(const T* query_point, const Matrix<T>& dataset,
+                                                 double R) const {
     std::vector<int> candidate_ids = get_candidates(query_point, dataset.get_cols());
     return find_in_range_from_candidates(candidate_ids, query_point, dataset, R);
 }
 
 template <typename T>
-std::unique_ptr<Output> lsh_querying(
-    const Matrix<T>& input_images,
-    const Matrix<T>& query_images,
-    LshArguments& args
-) {
+std::unique_ptr<Output> lsh_querying(const Matrix<T>& input_images, const Matrix<T>& query_images,
+                                     LshArguments& args) {
     auto output = std::make_unique<Output>();
     output->algorithm = "LSH";
     output->queries.resize(query_images.get_rows());
 
-    LSH_Index<T> index(
-        args.L,
-        args.k,
-        static_cast<float>(args.w),
-        input_images.get_cols(),
-        static_cast<std::uint32_t>(args.seed)
-    );
+    LSH_Index<T> index(args.L, args.k, static_cast<float>(args.w), input_images.get_cols(),
+                       static_cast<std::uint32_t>(args.seed));
     index.build(input_images);
 
     std::cout << "Processing " << query_images.get_rows() << " queries..." << std::endl;
@@ -145,23 +140,17 @@ std::unique_ptr<Output> lsh_querying(
     for (size_t i_query = 0; i_query < query_images.get_rows(); i_query++) {
         const T* query_pixels = query_images.get_row(i_query);
 
-        size_t N = (args.common.number_of_nearest > 0) ? 
-                   static_cast<size_t>(args.common.number_of_nearest) : 1;
-        
-        std::vector<ANearNeighbor> neighbors = index.find_k_nearest(
-            query_pixels, 
-            input_images, 
-            N
-        );
-        
+        size_t N = (args.common.number_of_nearest > 0)
+                       ? static_cast<size_t>(args.common.number_of_nearest)
+                       : 1;
+
+        std::vector<ANearNeighbor> neighbors = index.find_k_nearest(query_pixels, input_images, N);
+
         output->queries[i_query].nearest_neighbors = neighbors;
 
         if (args.common.search_for_range) {
-            std::vector<ImageId> range_neighbors = index.find_in_range(
-                query_pixels,
-                input_images,
-                args.common.radius
-            );
+            std::vector<ImageId> range_neighbors =
+                index.find_in_range(query_pixels, input_images, args.common.radius);
             output->queries[i_query].r_near_neighbors = range_neighbors;
         }
     }
@@ -176,10 +165,11 @@ template class SuperHash<uint8_t>;
 template class LSH_Index<float>;
 template class LSH_Index<uint8_t>;
 
-template std::unique_ptr<Output> lsh_querying<float>(
-    const Matrix<float>&, const Matrix<float>&, LshArguments&);
-template std::unique_ptr<Output> lsh_querying<uint8_t>(
-    const Matrix<uint8_t>&, const Matrix<uint8_t>&, LshArguments&);
+template std::unique_ptr<Output> lsh_querying<float>(const Matrix<float>&, const Matrix<float>&,
+                                                     LshArguments&);
+template std::unique_ptr<Output> lsh_querying<uint8_t>(const Matrix<uint8_t>&,
+                                                       const Matrix<uint8_t>&, LshArguments&);
 
 template int lsh_base_hash<float>(const std::vector<float>&, const float*, size_t, float, float);
-template int lsh_base_hash<uint8_t>(const std::vector<float>&, const uint8_t*, size_t, float, float);
+template int lsh_base_hash<uint8_t>(const std::vector<float>&, const uint8_t*, size_t, float,
+                                    float);
