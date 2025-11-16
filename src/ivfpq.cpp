@@ -11,8 +11,10 @@ Ivfpq<T, TWithNegatives, CodebookIndex>::Ivfpq(const Matrix<T>& dataset, int k_c
                                                int dimensions_of_sub_vectors, int nbits, int seed)
     : dimensions_of_sub_vectors(dimensions_of_sub_vectors), nbits(nbits), seed(seed),
       dataset(dataset), coarse_clusters(dataset, k_clusters, seed) {
-    // Excess dimensions aren't considered.
-    // That is, if the groups are of 4 dimensions and 3 remain in the end, they won't be considered.
+    // Calculate number of sub-vectors (m). If dimensions don't divide evenly, excess dimensions
+    // are discarded. For example, if d=130 and dimensions_of_sub_vectors=16, we get m=8 sub-vectors
+    // covering 128 dimensions, ignoring the last 2 dimensions. This is acceptable in practice since
+    // losing a few dimensions has minimal impact on search quality.
     pieces_of_a_vector = dataset.get_cols() / dimensions_of_sub_vectors;
 }
 template <typename T, typename TWithNegatives, typename CodebookIndex>
@@ -22,8 +24,8 @@ Ivfpq<T, TWithNegatives, CodebookIndex>::Ivfpq(const Matrix<T>& dataset, int k_c
     : dimensions_of_sub_vectors(dimensions_of_sub_vectors), nbits(nbits), seed(seed),
       should_print(should_print), dataset(dataset), coarse_clusters(dataset, k_clusters, seed) {
 
-    // Excess dimensions aren't considered.
-    // That is, if the groups are of 4 dimensions and 3 remain in the end, they won't be considered.
+    // Calculate number of sub-vectors, discarding excess dimensions if d is not divisible by
+    // dimensions_of_sub_vectors.
     pieces_of_a_vector = dataset.get_cols() / dimensions_of_sub_vectors;
     if (!should_print) {
         coarse_clusters.disable_printing();
@@ -36,17 +38,20 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::build() {
     if (should_print) {
         std::cout << "Building IVFPQ index for " << dataset.get_rows() << " points..." << std::endl;
     }
+    
+    // Build coarse clusters first (IVF part). Use 20 iterations instead of default 10 for better
+    // coarse clustering since residual quality depends on good coarse centroids.
     coarse_clusters.set_max_build_iterations(20);
     coarse_clusters.build();
 
     const size_t num_coarse = coarse_clusters.get_centroids().get_rows();
 
+    // Preallocate space for compressed codes. Reserve prevents reallocation which would invalidate
+    // pointers to elements.
     code_per_piece_per_image_per_cluster.reserve(num_coarse);
-
     residual_dimension_groups_per_offset.reserve(num_coarse * pieces_of_a_vector);
-    // Elements are pointed to as they're pushed, with the current implementation. Reserving is
-    // necessary for that.
 
+    // For each coarse cluster, build m sub-vector quantizers (Product Quantization part)
     for (size_t centroid_id = 0; centroid_id < num_coarse; centroid_id++) {
 
         const std::vector<int>& image_ids =
@@ -54,22 +59,27 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::build() {
         auto& cpic = code_per_piece_per_image_per_cluster;
         cpic.emplace_back(image_ids.size(), pieces_of_a_vector);
         Matrix<CodebookIndex>& code_per_piece_per_image = cpic[cpic.size() - 1];
-        // Used later. (If it's placed later, the image_ids will need a similar comment.)
 
+        // For each sub-vector group, build a quantizer
         for (int i_piece = 0; i_piece < pieces_of_a_vector; i_piece++) {
             int first_pixel = i_piece * dimensions_of_sub_vectors;
 
-            // Please read bottom to top.
-            // Prepare for k-means clustering, which takes a Matrix<T>. Copy the equivalent pieces,
-            // AS RESIDUALS.
+            // Compute residuals (vector minus coarse centroid) for this sub-vector group.
+            // Residual quantization is more accurate than raw vector quantization because residuals
+            // have smaller magnitude and tighter distribution after removing the coarse structure.
             std::vector<Matrix<TWithNegatives>>& rdg = residual_dimension_groups_per_offset;
             rdg.emplace_back(image_ids.size(), dimensions_of_sub_vectors);
             Matrix<TWithNegatives>& residual_i_th_pieces = rdg[rdg.size() - 1];
+            
             for (size_t i_image = 0; i_image < image_ids.size(); i_image++) {
                 TWithNegatives* residual_piece = residual_i_th_pieces.get_row(i_image);
                 const T* of_image = &dataset.get_row(image_ids[i_image])[first_pixel];
                 const T* of_centroid =
                     &coarse_clusters.get_centroids().get_row(centroid_id)[first_pixel];
+                
+                // Compute residual with careful type handling. For uint8_t, cast to int32_t to
+                // avoid underflow (residuals can be negative). Result fits in int8_t since
+                // |residual| < 256.
                 for (int i = 0; i < dimensions_of_sub_vectors; i++) {
                     if constexpr (std::is_same_v<T, uint8_t>) {
                         residual_piece[i] =
@@ -81,14 +91,16 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::build() {
                 }
             }
 
-            // With the pieces compacted into a Matrix<T>, they can be used for k-means clustering.
+            // Run k-means on residual sub-vectors to build sub-vector quantizer. Each quantizer
+            // has 2^nbits centroids (codebook). The centroids represent quantization codewords
+            // for this sub-space.
             std::vector<Ivfflat<TWithNegatives>>& cpd =
                 clusters_per_dimension_group_per_coarse_cluster;
             cpd.emplace_back(residual_i_th_pieces, 1u << nbits, seed);
-            // Indeed the vector represents a 2x2 matrix.
+            
             assert(cpd.size() - 1 == centroid_id * pieces_of_a_vector + i_piece);
             assert(cpd.size() == residual_dimension_groups_per_offset.size());
-            // Perhaps this assertion should be debug-only.
+            
             Ivfflat<TWithNegatives>& inner_clusters = cpd[cpd.size() - 1];
             if (should_print) {
                 std::stringstream ss;
@@ -99,20 +111,15 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::build() {
                 inner_clusters.disable_printing();
             }
             inner_clusters.build();
-            // std::cout << "Built inner clusters, printing:" << std::endl;
-            // inner_clusters.print();
 
-            // For each centroid index, place it in some codebook slots.
-            // In other words, traverse the image IDs of the inner cluster and assign them this
-            // inner centroid.
-            const size_t n = inner_clusters.get_centroids().get_rows(); // may not be 1 << nbits
+            // Assign codes: for each residual sub-vector, find its nearest quantization centroid
+            // and store the centroid's index as the code. This compresses the sub-vector from
+            // (d/m) floats to a single code of nbits.
+            const size_t n = inner_clusters.get_centroids().get_rows(); // may be less than 2^nbits if cluster too small
             for (size_t inner_centroid_index = 0; inner_centroid_index < n;
                  inner_centroid_index++) {
 
-                // TODO The slides mention inverse indexes, but the current implementation doesn't
-                // reflect that need.
-
-                // Put inner_centroid_index in some slots.
+                // Assign code inner_centroid_index to all sub-vectors in this quantization cluster
                 const std::vector<int>& image_id =
                     inner_clusters.get_image_ids_per_cluster()[inner_centroid_index];
                 for (size_t i = 0; i < image_id.size(); i++) {
@@ -123,10 +130,14 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::build() {
     }
     if (should_print) {
         std::cout << "IVFPQ index build complete.                      "
-                  << std::endl; // The spaces will go on top of the progress bar.
+                  << std::endl; // Spaces overwrite progress bar
     }
 }
 
+// Helper function to partially sort a vector and return the effective size. If num_nearest_centroids
+// is less than vector size, uses partial_sort for O(n·log(k)) instead of full sort's O(n·log(n)).
+// If num_nearest_centroids exceeds size, falls back to full sort. Returns the actual number of
+// sorted elements (min of requested and available).
 static size_t sort_n(std::vector<std::tuple<double, int>>& distances,
                      size_t num_nearest_centroids) {
     if (num_nearest_centroids <= distances.size()) {
@@ -161,13 +172,17 @@ IVFPQ index build complete.                      roids, 0/179 centroid pixels mo
     nprobe=1 | Recall=0.650 | Speedup=24.5x
 */
 
+// Compute approximate distances to candidates in a single coarse cluster using asymmetric distance
+// computation (ADC). This is the core of IVF-PQ query processing, using precomputed distance tables
+// for fast approximate distance via table lookups instead of full distance computations.
 template <typename T, typename TWithNegatives, typename CodebookIndex>
 void Ivfpq<T, TWithNegatives, CodebookIndex>::add_local_candidates(
     std::vector<std::tuple<double, int>>& candidates, size_t insert_position,
     const T* pixels_of_query, size_t candidates_per_cluster, size_t i_centroid) const {
 
-    // Residual.
-
+    // Step 1: Compute query residual (query minus coarse centroid). This residual will be
+    // decomposed into sub-vectors and compared against quantization centroids. Residual space
+    // is where product quantization operates.
     const size_t pixels_per_image = dataset.get_cols();
     std::vector<TWithNegatives> residual(pixels_per_image);
     const T* coarse_centroid_pixels = coarse_clusters.get_centroids().get_row(i_centroid);
@@ -181,10 +196,12 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::add_local_candidates(
         }
     }
 
-    // Pre-calculate distances to sub-centroids.
-
+    // Step 2: Precompute distance table (asymmetric distance lookup table). For each sub-vector
+    // group, compute distances from query sub-vector to all 2^nbits quantization centroids. This
+    // gives m·2^nbits distances. These distances are reused for all candidates in this cluster,
+    // amortizing the O(m·2^nbits·d/m) cost across all candidates. This is the key optimization
+    // of asymmetric distance computation.
     Matrix<double> distance_to_centroids_of_pieces(pieces_of_a_vector, 1 << nbits);
-    // "piece" as in group of dimensions
     for (int i_piece = 0; i_piece < pieces_of_a_vector; i_piece++) {
         const Ivfflat<TWithNegatives>& inner_clusters =
             clusters_per_dimension_group_per_coarse_cluster[i_centroid * pieces_of_a_vector +
@@ -192,14 +209,19 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::add_local_candidates(
         const Matrix<TWithNegatives>& inner_centroids = inner_clusters.get_centroids();
         double* distance_to_centroids = distance_to_centroids_of_pieces.get_row(i_piece);
         TWithNegatives* residual_piece = &residual[i_piece * dimensions_of_sub_vectors];
+        
+        // Compute squared Euclidean distance from query sub-vector to each quantization centroid
         for (size_t i = 0; i < inner_centroids.get_rows() /* may not be 1 << nbits */; i++) {
             distance_to_centroids[i] = euclidean_distance_squared<TWithNegatives>(
                 residual_piece, inner_centroids.get_row(i), dimensions_of_sub_vectors);
         }
     }
 
-    // Store asymmetric distances to the images, using the sub-centroids.
-
+    // Step 3: Compute approximate distance to each candidate via table lookups. For each candidate,
+    // retrieve its m codes, sum distances indexed by those codes from the precomputed table. This
+    // is O(m) per candidate instead of O(d) for full distance. The approximate distance is
+    // ||q_res - x_res||² ≈ sum_{i=1}^m ||q_res_i - c_{code_i}||² where c_{code_i} is the
+    // quantization centroid indicated by the candidate's code for sub-vector i.
     const std::vector<int>& image_ids_in_cluster =
         coarse_clusters.get_image_ids_per_cluster()[i_centroid];
     size_t images_in_the_cluster = image_ids_in_cluster.size();
@@ -209,8 +231,7 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::add_local_candidates(
 
         double asymmetric_distance = 0;
 
-        // "piece" as in group of dimensions
-
+        // Sum distances indexed by codes (table lookups)
         const CodebookIndex* code_per_piece =
             code_per_piece_per_image_per_cluster[i_centroid].get_row(i_image);
         for (int i_piece = 0; i_piece < pieces_of_a_vector; i_piece++) {
@@ -218,28 +239,29 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::add_local_candidates(
             asymmetric_distance += distance_to_centroids_of_pieces.unchecked(i_piece, code_of_x);
         }
 
-        // Store local index in ds, will map to global later
+        // Store local index (within cluster), will map to global later
         ds[i_image] = std::make_tuple(asymmetric_distance, i_image);
     }
 
-    // Find the best candidates for this probe coarse cluster.
-    // IMPORTANT: Take more candidates per cluster to compensate for PQ approximation errors
-    // With high nprobe, we need to over-sample within each cluster
+    // Step 4: Select top candidates from this cluster based on approximate distance. We over-sample
+    // (candidates_per_cluster > num_results) to compensate for PQ approximation errors. Some
+    // candidates with good approximate distance may have poor exact distance, so taking more
+    // candidates increases chance of capturing true nearest neighbors.
     size_t n = sort_n(ds, candidates_per_cluster);
 
-    // Add these candidates to the global candidate list
-    // We'll re-sort the entire list after adding candidates from this cluster
-
+    // Step 5: Refine selected candidates by computing exact distance to original vectors. Map local
+    // cluster indices to global dataset indices and compute full Euclidean distance. This refinement
+    // corrects for PQ approximation errors. Insert into global candidate list at specified position.
     for (size_t i = 0; i < n; i++) {
         // Map local cluster index to global dataset index
         int local_image_index = std::get<1>(ds[i]);
         int global_image_id = image_ids_in_cluster[local_image_index];
 
-        // Calculate real distance using global image ID
+        // Calculate exact distance using full original vector
         double real_distance_squared = euclidean_distance_squared(
             pixels_of_query, dataset.get_row(global_image_id), pixels_per_image);
 
-        // Store real distance and global image ID
+        // Store exact distance and global image ID in candidate list
         if (insert_position + i < candidates.size()) {
             candidates[insert_position + i] =
                 std::make_tuple(real_distance_squared, global_image_id);
@@ -247,22 +269,30 @@ void Ivfpq<T, TWithNegatives, CodebookIndex>::add_local_candidates(
     }
 }
 
+// Query the IVF-PQ index to find approximate nearest neighbors. Three-phase algorithm: coarse
+// search to find nprobe nearest coarse centroids, asymmetric distance computation within probed
+// clusters using PQ codes and lookup tables, refinement with exact distances. Returns num_results
+// candidates sorted by exact distance.
 template <typename T, typename TWithNegatives, typename CodebookIndex>
 std::vector<std::tuple<double, int>> Ivfpq<T, TWithNegatives, CodebookIndex>::get_candidates(
     const T* pixels_of_query, int num_nearest_centroids, int num_results) const {
 
-    // Allocate enough space for candidates from all probed clusters
-    // We take 5x num_results per cluster to compensate for PQ approximation errors
+    // Allocate candidate buffer. We over-sample by taking 20x num_results candidates per probed
+    // cluster to compensate for PQ approximation errors. Some candidates with good approximate
+    // distance (computed via PQ codes) have poor exact distance, so over-sampling increases the
+    // chance of capturing true nearest neighbors. This is a critical parameter: too small causes
+    // recall loss, too large wastes computation on refinement.
     size_t candidates_per_cluster = num_results * 20;
     size_t max_candidates = candidates_per_cluster * num_nearest_centroids + num_results;
 
     std::vector<std::tuple<double, int>> candidates(
-        max_candidates, // Enough space for all candidates from all probed clusters
-        std::make_tuple(std::numeric_limits<double>::infinity(), -1));
+        max_candidates,
+        std::make_tuple(std::numeric_limits<double>::infinity(), -1)); // Initialize with sentinels
     const size_t pixels_per_image = dataset.get_cols();
 
-    // Find the nearest centroids.
-
+    // Phase 1: Coarse search to find nprobe = num_nearest_centroids nearest coarse centroids.
+    // Compute exact distance from query to all k coarse centroids and select closest nprobe.
+    // This determines which Voronoi cells to search, same as IVF-Flat.
     const Matrix<T>& centroids = coarse_clusters.get_centroids();
     std::vector<std::tuple<double, int>> distances(centroids.get_rows());
     for (size_t i = 0; i < centroids.get_rows(); i++) {
@@ -272,23 +302,27 @@ std::vector<std::tuple<double, int>> Ivfpq<T, TWithNegatives, CodebookIndex>::ge
     }
     const size_t min_nearest_centroids = sort_n(distances, num_nearest_centroids);
 
-    // For each, find the nearest images.
-
+    // Phase 2 & 3: For each probed cluster, compute asymmetric distances (ADC) to all candidates
+    // in that cluster using precomputed distance tables, then refine by computing exact distances.
+    // After each cluster, re-sort the global candidate list to keep best num_results at front.
     for (size_t c = 0; c < min_nearest_centroids; c++) {
         size_t i_centroid = std::get<1>(distances[c]);
         size_t insert_position = num_results + c * candidates_per_cluster;
 
-        // This function was originally extracted to experiment by wrapping it in an if-statement.
-        // It can be inlined back without drawbacks.
+        // Process this cluster: compute distance table, compute approximate distances via table
+        // lookups, select top candidates_per_cluster, refine with exact distances
         add_local_candidates(candidates, insert_position, pixels_of_query, candidates_per_cluster,
                              i_centroid);
 
-        // After each cluster, re-sort to keep the best num_results at the front
+        // Re-sort after each cluster to maintain best num_results at front. This ensures we
+        // always keep the global best candidates as we incrementally add candidates from each
+        // probed cluster.
         sort_n(candidates, num_results);
     }
 
-    // Truncate and return. There may be gaps, with infinite distance and -1 index.
-
+    // Return top num_results with exact distances. Some entries may have infinite distance and -1
+    // index if fewer than num_results candidates exist in probed clusters (happens when clusters
+    // are small or nprobe is low).
     candidates.resize(num_results);
     return candidates;
 }
