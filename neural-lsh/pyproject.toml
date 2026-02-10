@@ -1,5 +1,5 @@
 [project]
-name = "neural-lsh"
+name = "neural_lsh"
 version = "1.0.0"
 description = "Neural Locality-Sensitive Hashing for Approximate Nearest Neighbor Search"
 readme = "README.md"

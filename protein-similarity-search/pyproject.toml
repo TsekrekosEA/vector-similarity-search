@@ -1,5 +1,5 @@
 [project]
-name = "protein-similarity-search"
+name = "protein_similarity_search"
 version = "1.0.0"
 description = "Protein similarity search using ESM-2 embeddings and ANN algorithms, benchmarked against BLAST"
 readme = "README.md"
