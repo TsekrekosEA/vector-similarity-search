@@ -42,8 +42,5 @@ nlsh-search = "nlsh_search:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.build.targets.wheel]
-only-include = [
-    "*.py",
-    "py.typed",
-]
+[tool.hatch.build]
+packages = ["."]
