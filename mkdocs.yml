@@ -1,0 +1,48 @@
+# MkDocs configuration for API documentation.
+# Generates a standalone site from Python docstrings.
+#
+# Usage:
+#   pip install mkdocs mkdocs-material mkdocstrings[python]
+#   mkdocs serve     # local preview at http://127.0.0.1:8000
+#   mkdocs build     # static site in site/
+
+site_name: "ANN Project — API Reference"
+site_description: "Auto-generated API docs for Neural LSH and Protein Similarity Search"
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+  features:
+    - content.code.copy
+    - navigation.sections
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            heading_level: 2
+            docstring_style: google
+
+nav:
+  - Home: index.md
+  - Neural LSH:
+      - Model: api/neural-lsh/model.md
+      - Build: api/neural-lsh/nlsh_build.md
+      - Search: api/neural-lsh/nlsh_search.md
+      - Parsers: api/neural-lsh/parsers.md
+      - Brute Force: api/neural-lsh/brute_force.md
+      - Metrics: api/neural-lsh/metrics.md
+      - Results: api/neural-lsh/results.md
+      - Output Writer: api/neural-lsh/output_writer.md
+      - Ground Truth Cache: api/neural-lsh/ground_truth_cache.md
+  - Protein Similarity Search:
+      - Embedding CLI: api/protein-search/protein_embed.md
+      - Embedding Backend: api/protein-search/protein_embed_backend.md
+      - Search Pipeline: api/protein-search/protein_search.md
+      - Plot Results: api/protein-search/plot_results.md
