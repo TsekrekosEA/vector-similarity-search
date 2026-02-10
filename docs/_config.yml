@@ -1,0 +1,4 @@
+theme: jekyll-theme-cayman
+title: "ANN Search: From Theory to Protein Discovery"
+description: "A comprehensive study of Approximate Nearest Neighbour algorithms — from C++ data structures to learned hash functions to real-world bioinformatics."
+show_downloads: true

@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # C++ Build & Smoke Test
+  # ─────────────────────────────────────────────────────────────────
+  cpp-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build C++ algorithms
+        run: |
+          cd cpp-ann-algorithms
+          make build-all
+
+      - name: Verify binaries exist
+        run: |
+          test -f cpp-ann-algorithms/bin/search
+          test -f cpp-ann-algorithms/bin/benchmark
+
+  # ─────────────────────────────────────────────────────────────────
+  # Python Dependency Resolution (Neural LSH)
+  # ─────────────────────────────────────────────────────────────────
+  neural-lsh-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Resolve dependencies
+        run: |
+          cd neural-lsh
+          uv sync --no-install-project
+
+      - name: Import check
+        run: |
+          cd neural-lsh
+          uv run python -c "import torch; import numpy; import sklearn; print('All imports OK')"
+
+      - name: Type check (mypy)
+        run: |
+          cd neural-lsh
+          uv run --extra dev mypy --ignore-missing-imports *.py
+
+  # ─────────────────────────────────────────────────────────────────
+  # Python Dependency Resolution (Protein Search)
+  # ─────────────────────────────────────────────────────────────────
+  protein-search-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Resolve dependencies
+        run: |
+          cd protein-similarity-search
+          uv sync --no-install-project
+
+      - name: Import check
+        run: |
+          cd protein-similarity-search
+          uv run python -c "import torch; import transformers; import Bio; print('All imports OK')"
+
+      - name: Type check (mypy)
+        run: |
+          cd protein-similarity-search
+          uv run --extra dev mypy --ignore-missing-imports *.py

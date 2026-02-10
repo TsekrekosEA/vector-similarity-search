@@ -1,0 +1,28 @@
+{
+    "name": "ANN Project",
+    "build": {
+        "context": "..",
+        "dockerfile": "../Dockerfile",
+        "target": "runtime"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "charliermarsh.ruff",
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/app/neural-lsh/.venv/bin/python",
+                "editor.formatOnSave": true,
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff"
+                }
+            }
+        }
+    },
+    "postCreateCommand": "cd /app/neural-lsh && uv sync && cd /app/protein-similarity-search && uv sync",
+    "remoteUser": "root"
+}

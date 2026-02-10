@@ -1,144 +1,219 @@
-# High-Performance Approximate Nearest Neighbor Search Engine
+# Approximate Nearest Neighbor Search: From Theory to Protein Discovery
 
-A C++17 implementation of a high-performance vector similarity search engine, built entirely from scratch. This project provides a framework for indexing and searching through millions of high-dimensional vectors using several state-of-the-art Approximate Nearest Neighbor (ANN) algorithms.
+A comprehensive study and implementation of Approximate Nearest Neighbor (ANN) algorithms — from foundational data structures in C++ to learned hash functions in Python, culminating in a real-world application: discovering similar proteins that traditional sequence alignment (BLAST) might miss.
 
-The engine is benchmarked on standard industry datasets, **SIFT1M** (1 million 128-D float vectors) and **MNIST** (60,000 784-D `uint8_t` vectors), to scientifically evaluate the performance and accuracy trade-offs of each implemented technique.
-
-![MNIST Recall vs Speedup](images/MNIST_recall_vs_speedup.png)
-*Figure 1: Recall vs. Speedup comparison for all implemented algorithms on the MNIST dataset.*
-
-![SIFT Recall vs Speedup](images/SIFT_recall_vs_speedup.png)
-*Figure 2: Recall vs. Speedup comparison for all implemented algorithms on the SIFT1M dataset.*
----
-
-## Table of Contents
-- [Project Highlights](#project-highlights)
-- [Project Structure](#project-structure)
-- [Setup and Building](#setup-and-building)
-- [Usage](#usage)
-- [Benchmarking & Visualization](#benchmarking--visualization)
-- [Performance Metrics](#performance-metrics)
-- [Authors](#authors)
+<p align="center">
+  <img src="cpp-ann-algorithms/images/SIFT_recall_vs_speedup.png" width="48%" alt="SIFT Recall vs Speedup"/>
+  <img src="cpp-ann-algorithms/images/MNIST_recall_vs_speedup.png" width="48%" alt="MNIST Recall vs Speedup"/>
+</p>
+<p align="center"><em>Recall vs. Speedup trade-offs across all implemented algorithms on SIFT1M and MNIST.</em></p>
 
 ---
 
-## Project Highlights
+## Project Overview
 
--   **Algorithms Implemented from Scratch:** 
-    -   **LSH (Locality-Sensitive Hashing):** Using random projections and an efficient single-integer key scheme.
-    -   **Hypercube LSH:** A high-performance implementation using `uint64_t` keys and a multi-probe BFS search strategy.
-    -   **IVF-Flat (Inverted File):** A partition-based index built on a custom, optimized k-means implementation.
-    -   **IVF-PQ (Inverted File with Product Quantization):** An advanced index combining IVF with vector compression for massive memory savings and accelerated search via Asymmetric Distance Computation (ADC).
+This project implements and benchmarks **six ANN methods** end-to-end, progressing through three levels of sophistication:
 
--   **High-Performance C++ Design:** The codebase emphasizes modern C++17 best practices for speed and safety.
-    -   **Cache-Friendly Data Structures:** Utilizes a custom `Matrix` class with a contiguous memory layout to maximize cache locality and processing speed.
-    -   **Template-Based Genericity:** The entire system is generic, supporting both `float` and `uint8_t` data types without code duplication.
-    -   **RAII and Smart Pointers:** Ensures robust, leak-free memory management.
+| Component | Description | Language | Key Techniques |
+|-----------|-------------|----------|----------------|
+| [**cpp-ann-algorithms/**](cpp-ann-algorithms/) | Four ANN algorithms implemented from scratch | C++17 | LSH, Hypercube, IVF-Flat, IVF-PQ |
+| [**neural-lsh/**](neural-lsh/) | Learned hash functions via graph partitioning | Python / PyTorch | KaHIP, MLP classifier, multi-probe search |
+| [**protein-similarity-search/**](protein-similarity-search/) | Real-world protein similarity pipeline | Python / C++ | ESM-2 embeddings, BLAST comparison |
 
--   **Scientific Benchmarking & Analysis:** Includes a comprehensive C++ benchmarking harness and Python visualization scripts to produce detailed performance reports.
-    -   **Key Metrics:** Gathers crucial metrics like Recall@N, Queries Per Second (QPS), and Average Approximation Factor (AF).
-    -   **Data-Driven Insights:** The generated plots provide a clear, empirical analysis of the speed vs. accuracy trade-offs.
+### Key Results
+
+| Method | SIFT1M Recall@10 | MNIST Recall@10 | Protein Recall@50 vs BLAST |
+|--------|:-:|:-:|:-:|
+| LSH | ~0.65 | ~0.80 | 0.38 |
+| Hypercube | ~0.45 | ~0.70 | 0.60 |
+| IVF-Flat | ~0.95 | ~0.95 | 0.67 |
+| IVF-PQ | ~0.85 | ~0.90 | 0.67 |
+| Neural LSH | ~0.90 | ~0.95 | **0.67** (9.5 QPS — 4x faster than BLAST) |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        cpp-ann-algorithms/ (C++17)                         │
+│                                                                             │
+│   ┌─────────┐  ┌───────────┐  ┌──────────┐  ┌────────────────────────┐     │
+│   │   LSH   │  │ Hypercube │  │ IVF-Flat │  │       IVF-PQ           │     │
+│   │L tables │  │ BFS probe │  │ k-means  │  │ Product Quantization   │     │
+│   │k hashes │  │ XOR flip  │  │ inv.list │  │ Asymmetric Distance    │     │
+│   └────┬────┘  └─────┬─────┘  └────┬─────┘  └──────────┬────────────┘     │
+│        └──────────────┼─────────────┼───────────────────┘                   │
+│                       ▼             ▼                                       │
+│              ┌──────────────────────────────┐                               │
+│              │  Matrix<T> · distance funcs  │                               │
+│              │  metrics · file I/O · bench  │                               │
+│              └──────────────────────────────┘                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                         neural-lsh/ (Python)                                │
+│                                                                             │
+│   Dataset ──► k-NN Graph ──► KaHIP Partition ──► Train MLP ──► Multi-probe │
+│              (scikit-learn)   (graph cutting)    (PyTorch)     search       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                  protein-similarity-search/ (Python + C++)                  │
+│                                                                             │
+│   Swiss-Prot ──► ESM-2 Embed ──► ANN Search ──► Compare vs BLAST          │
+│   (573K proteins)  (320-dim)     (all methods)   (Recall@N evaluation)     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- C++17 compiler (GCC 7+ or Clang 5+)
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip
+- BLAST+ (for protein search only)
+
+### 1. C++ Algorithms
+
+```bash
+cd cpp-ann-algorithms
+./scripts/download_sift.sh   # Download SIFT1M dataset (~400MB)
+./scripts/download_mnist.sh  # Download MNIST dataset (~50MB)
+make                         # Build with -O2 -std=c++17
+
+# Run LSH on SIFT1M
+./bin/search -lsh -d data/sift/sift_base.fvecs \
+    -q data/sift/sift_query.fvecs -o output/lsh_sift.txt \
+    -type sift -k 4 -L 5 -N 10
+
+# Run full benchmark suite
+make build-all
+./bin/benchmark
+python3 plot_results.py
+```
+
+### 2. Neural LSH
+
+```bash
+cd neural-lsh
+uv sync                     # Install dependencies
+
+# Build index (k-NN graph → KaHIP partition → MLP training)
+uv run python nlsh_build.py -d ../data/mnist/train-images.idx3-ubyte \
+    -i output/nlsh_index.pth -type mnist -m 100 --epochs 10
+
+# Search
+uv run python nlsh_search.py -d ../data/mnist/train-images.idx3-ubyte \
+    -q ../data/mnist/t10k-images.idx3-ubyte \
+    -i output/nlsh_index.pth -o output/results.txt -type mnist -N 10 -T 5
+```
+
+### 3. Protein Similarity Search
+
+```bash
+cd protein-similarity-search
+./setup.sh                   # Download Swiss-Prot, build BLAST DB, generate embeddings
+./run_pipeline.sh            # Run all methods and compare against BLAST
+```
+
+---
+
+## Algorithms Implemented
+
+### Locality-Sensitive Hashing (LSH)
+Random projection hash functions with **L independent hash tables**, each using a composite SuperHash of **k base hashes**. Provides probabilistic guarantees on finding near neighbors with sub-linear query time.
+
+### Hypercube LSH
+Maps vectors to vertices of a **k-dimensional binary hypercube** via sign of random projections. Uses **BFS-based multi-probe search** at increasing Hamming distances. Single hash table design uses ~5-10x less memory than standard LSH.
+
+### IVF-Flat (Inverted File Index)
+Partitions the dataset into **Voronoi cells** via k-means clustering. Queries search the **nprobe nearest cells** for exact distance computation. Custom k-means implementation with early-termination distance optimization.
+
+### IVF-PQ (Product Quantization)
+Extends IVF-Flat with **vector compression**: splits each vector into M sub-vectors, quantizes each independently. Uses **Asymmetric Distance Computation (ADC)** — precomputing distance tables for O(M) lookups per candidate instead of O(D).
+
+### Neural LSH
+A **learned hashing** approach: builds a k-NN graph over the dataset, partitions it with KaHIP (balanced graph cutting), then trains an MLP to predict partition membership. At query time, the network routes queries to the most likely partitions in a single forward pass.
+
+---
+
+## Benchmarking
+
+The C++ component includes a comprehensive benchmarking harness with:
+- **Ground truth caching** — brute-force results serialized to disk, loaded in <1s on subsequent runs
+- **Index reuse** — for IVF methods, builds index once and tests multiple `nprobe` values
+- **Batched parallelism** — uses `std::async` with 75% of hardware cores
+- **Parameter sweeps** — ~200 configurations across all algorithms
+- **CSV export + visualization** — 22 plot types via matplotlib/seaborn
+
+```bash
+cd cpp-ann-algorithms
+./bin/benchmark --sift-only --ivfflat-only   # Targeted sweep
+python3 plot_results.py                       # Generate all visualizations
+```
 
 ---
 
 ## Project Structure
-```.
-├── Makefile          # Build system for main program and benchmarks
-├── README.md         # This file
-├── scripts/          # Helper scripts for downloading data
-├── src/              # Source files (.cpp) for all algorithms and utilities
-├── include/          # Header files (.hpp) for all modules
-├── data/             # Datasets (git-ignored)
-├── output/           # Individual algorithm output files (git-ignored)
-└── results/          # Benchmark CSVs and generated plots (git-ignored)
+
 ```
----
-
-## Setup and Building
-
-#### Prerequisites
--   C++ compiler with C++17 support (e.g., `g++` or `clang++`)
--   `make`
--   `wget` and `tar`
--   Python 3 with `pandas` and `matplotlib` (for visualization)
-
-#### 1. Download Datasets
-The algorithms are generic and can work with any dataset in the appropriate binary format. The scripts below download the specific **SIFT1M** and **MNIST** datasets used for the benchmarks presented in this project.
-
-**SIFT1M Dataset:**
-```bash
-./scripts/download_sift.sh
+.
+├── LICENSE
+├── README.md                       # This file
+├── .clang-format                   # C++ formatting rules
+├── .gitignore
+│
+├── cpp-ann-algorithms/             # Part 1: C++17 ANN implementations
+│   ├── Makefile
+│   ├── README.md
+│   ├── include/                    # Header files with algorithm docs
+│   ├── src/                        # Implementation files
+│   ├── scripts/                    # Dataset download scripts
+│   ├── images/                     # Benchmark result plots
+│   └── plot_results.py             # Visualisation (22 plot types)
+│
+├── neural-lsh/                     # Part 2: Learned hashing (Python/PyTorch)
+│   ├── pyproject.toml
+│   ├── README.md
+│   ├── nlsh_build.py               # Index construction pipeline
+│   ├── nlsh_search.py              # Multi-probe query pipeline
+│   ├── model.py                    # MLPClassifier (PyTorch module)
+│   ├── parsers.py                  # MNIST / SIFT binary readers
+│   ├── run_experiments.sh          # Parameterised experiment runner
+│   └── plot_results.py             # Neural LSH visualisation
+│
+├── protein-similarity-search/      # Part 3: Bioinformatics application
+│   ├── pyproject.toml
+│   ├── README.md
+│   ├── setup.sh                    # End-to-end environment setup
+│   ├── run_pipeline.sh             # Orchestration script
+│   ├── protein_embed.py            # ESM-2 embedding generation
+│   ├── protein_embed_backend.py    # Embedding implementation
+│   ├── protein_search.py           # Multi-method search & BLAST comparison
+│   └── results.txt                 # Sample benchmark results
+│
+└── docs/                           # GitHub Pages site (project write-up)
+    └── index.md
 ```
-
-**MNIST Dataset:**
-```bash
-./scripts/download_mnist.sh
-```
-
-#### 2. Build
-```bash
-# Build the main search program (bin/search)
-make
-
-# Build the benchmarking harness (bin/benchmark)
-make benchmark
-
-# Clean all compiled files
-make clean
-```
----
-
-## Usage
-
-### Basic Search
-The `bin/search` program can run any implemented algorithm on a compatible dataset.
-
-**Syntax:**
-```bash
-./bin/search -<alg> -d <input_file> -q <query_file> -o <output_file> [parameters...]
-```
--   **Common:** `-N <int>`, `-R <float>`, `-type <mnist|sift>`
--   **Algorithm Flags:** `-lsh`, `-hypercube`, `-ivfflat`, `-ivfpq`
-
-**Example (IVF-Flat on the SIFT1M benchmark dataset):**
-```bash
-./bin/search -ivfflat -d data/sift/sift_base.fvecs \
-    -q data/sift/sift_query.fvecs -o output/ivfflat_sift.txt \
-    -type sift -k_clusters 256 -nprobe 4 -N 10
-```
----
-
-## Benchmarking & Visualization
-
-The `bin/benchmark` program runs a full parameter sweep on the included SIFT1M and MNIST datasets to generate the performance data. The `plot_results.py` script visualizes this data.
-
-**1. Run Benchmarks:**
-```bash
-# Run sweeps for all algorithms on the default datasets
-./bin/benchmark
-
-# Or run for a specific algorithm
-./bin/benchmark --ivfflat-only
-```
-
-**2. Generate Plots:**
-```bash
-python3 plot_results.py
-```
-This script reads the benchmark CSVs from `results/` and saves comprehensive comparison plots to the same directory.
 
 ---
 
-## Performance Metrics
+## Technical Highlights
 
--   **Recall@N:** Accuracy metric. Fraction of queries where the true #1 nearest neighbor is found. (Higher is better).
--   **Average AF:** Quality metric. Average ratio of approximate distance to true distance. (Lower is better, 1.0 is perfect).
--   **Speedup:** Performance metric. How many times faster the algorithm is than brute-force. (Higher is better).
--   **QPS (Queries Per Second):** Throughput metric. (Higher is better).
+- **From-scratch implementations** — no external ANN libraries (FAISS, Annoy, etc.); every algorithm built from first principles
+- **Modern C++17** — templates with `if constexpr`, structured bindings, smart pointers, RAII
+- **Cache-optimized data structures** — custom contiguous `Matrix<T>` class for cache-friendly iteration
+- **Template-based zero-cost abstraction** — single codebase supports `float` and `uint8_t` without virtual dispatch
+- **Asymmetric Distance Computation** — IVF-PQ uses precomputed lookup tables for O(M) distance instead of O(D)
+- **Reproducible experiments** — seeded RNG, ground truth caching, automated parameter sweeps
+- **Real-world application** — ESM-2 protein language model embeddings enable detection of remote homologs missed by BLAST
 
 ---
 
 ## Authors
 
--   Egor-Andrianos Tsekrekos
--   Theodoros Dimakopoulos
+- **Egor-Andrianos Tsekrekos**
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
