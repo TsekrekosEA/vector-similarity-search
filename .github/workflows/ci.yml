@@ -41,17 +41,17 @@ jobs:
 
       - name: Resolve dependencies
         run: |
-          cd neural-lsh
+          cd neural_lsh
           uv sync --all-extras --no-install-project
 
       - name: Import check
         run: |
-          cd neural-lsh
+          cd neural_lsh
           uv run python -c "import torch; import numpy; import sklearn; print('All imports OK')"
 
       - name: Type check (mypy)
         run: |
-          cd neural-lsh
+          cd neural_lsh
           source .venv/bin/activate
           mypy --ignore-missing-imports *.py
 
@@ -71,16 +71,16 @@ jobs:
 
       - name: Resolve dependencies
         run: |
-          cd protein-similarity-search
+          cd protein_similarity_search
           uv sync --all-extras --no-install-project
 
       - name: Import check
         run: |
-          cd protein-similarity-search
+          cd protein_similarity_search
           uv run python -c "import torch; import transformers; import Bio; print('All imports OK')"
 
       - name: Type check (mypy)
         run: |
-          cd protein-similarity-search
+          cd protein_similarity_search
           source .venv/bin/activate
           mypy --ignore-missing-imports *.py
