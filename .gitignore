@@ -1,3 +1,55 @@
-# Ignore data files
-.github/
+# Build artifacts
+*.o
+*.pyc
+*.so
+*.a
+*.out
+__pycache__/
+algorithms/lsh-hypercube-ivf/bin/*
+!algorithms/lsh-hypercube-ivf/bin/.gitignore
+algorithms/lsh-hypercube-ivf/obj/*
+!algorithms/lsh-hypercube-ivf/obj/.gitignore
+
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+test_framework-protein_folding/venv/
+
+# Data files (large datasets and generated embeddings)
+*.dat
+*.pth
+*.fasta.gz
+test_framework-protein_folding/data/
+algorithms/neural_lsh/data/
+algorithms/lsh-hypercube-ivf/data/
+
+# Result and output files
+output/
+results/
+*.txt
+!requirements.txt
+!algorithms/lsh-hypercube-ivf/output/.gitkeep
+!test_framework-protein_folding/output/.gitkeep
+
+# IDE and editor files
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+.cache/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Extra utilities (not part of main project)
 extra_utils/

@@ -4,13 +4,34 @@ CPPFLAGS = -Wall -Wextra -I./include
 # Default target: build main search binary
 all: bin/search
 
+# Help target - show available commands
+.PHONY: help
+help:
+	@echo "Vector Similarity Search - C++ Components"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  make              - Build search binary (default)"
+	@echo "  make all          - Same as default"
+	@echo "  make build-all    - Build all binaries (search + benchmark)"
+	@echo "  make benchmark    - Build and run comprehensive benchmarks"
+	@echo "  make benchmark-mnist - Run MNIST benchmarks only"
+	@echo "  make benchmark-sift  - Run SIFT benchmarks only"
+	@echo "  make clean        - Remove build artifacts"
+	@echo "  make clean-tests  - Remove test outputs"
+	@echo "  make help         - Show this help message"
+	@echo ""
+	@echo "Example usage:"
+	@echo "  make clean && make && ./bin/search --help"
+
 # Clean build artifacts
 clean:
 	rm -f bin/* obj/*
+	@echo "✓ Build artifacts cleaned"
 
 # Clean test outputs
 clean-tests:
 	rm -rf output/tests/* results/*
+	@echo "✓ Test outputs cleaned"
 
 # Build all binaries (search + benchmark)
 build-all: bin/search bin/benchmark

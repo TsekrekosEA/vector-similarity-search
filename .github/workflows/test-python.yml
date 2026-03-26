@@ -1,0 +1,79 @@
+name: Test Python Components
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'algorithms/neural_lsh/**'
+      - 'test_framework-protein_folding/*.py'
+      - '.github/workflows/test-python.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'algorithms/neural_lsh/**'
+      - 'test_framework-protein_folding/*.py'
+
+jobs:
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake
+        
+    - name: Install Neural LSH dependencies
+      run: |
+        cd algorithms/neural_lsh
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Test Neural LSH imports
+      run: |
+        cd algorithms/neural_lsh
+        python -c "import nlsh_build; print('✓ nlsh_build imports successfully')"
+        python -c "import nlsh_search; print('✓ nlsh_search imports successfully')"
+        python -c "import parse_mnist; print('✓ parse_mnist imports successfully')"
+        python -c "import parse_sift; print('✓ parse_sift imports successfully')"
+        python -c "import nlsh_build_and_search; print('✓ nlsh_build_and_search imports successfully')"
+        
+    - name: Install Protein Search dependencies
+      run: |
+        cd test_framework-protein_folding
+        pip install -r requirements.txt
+        
+    - name: Test Protein Search imports
+      run: |
+        cd test_framework-protein_folding
+        python -c "import protein_embed_backend; print('✓ protein_embed_backend imports successfully')"
+        python -c "import protein_search; print('✓ protein_search imports successfully')"
+        
+    - name: Lint with flake8 (non-blocking)
+      run: |
+        pip install flake8
+        # Stop on syntax errors or undefined names
+        flake8 algorithms/neural_lsh --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 test_framework-protein_folding --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv
+        # All other warnings (non-blocking)
+        flake8 algorithms/neural_lsh --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        flake8 test_framework-protein_folding --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv
+        
+    - name: Check Python syntax
+      run: |
+        python -m py_compile algorithms/neural_lsh/*.py
+        python -m py_compile test_framework-protein_folding/*.py
+        echo "✓ All Python files compile successfully"

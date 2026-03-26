@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Vector Similarity Search: High-Performance ANN Algorithms"
+authors:
+  - family-names: "Tsekrekos"
+    given-names: "Egor-Andrianos"
+    orcid: ""
+repository-code: "https://github.com/TsekrekosEA/vector-similarity-search"
+url: "https://github.com/TsekrekosEA/vector-similarity-search"
+abstract: "A comprehensive implementation of Approximate Nearest Neighbor (ANN) search algorithms including LSH, Hypercube, IVF-Flat, IVF-PQ, and Neural LSH. Features a protein similarity search application using ESM-2 embeddings. Graduate project from the National and Kapodistrian University of Athens (EKPA), Department of Informatics and Telecommunications."
+keywords:
+  - approximate nearest neighbor
+  - similarity search
+  - locality sensitive hashing
+  - neural networks
+  - protein embeddings
+  - bioinformatics
+  - high-dimensional data
+license: MIT
+date-released: "2025-01-01"

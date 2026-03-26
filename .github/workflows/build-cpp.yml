@@ -1,0 +1,64 @@
+name: Build C++ Components
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'algorithms/lsh-hypercube-ivf/**'
+      - '.github/workflows/build-cpp.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'algorithms/lsh-hypercube-ivf/**'
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        # Can add macos-latest if desired
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup C++ environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential g++
+        g++ --version
+        
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: |
+          algorithms/lsh-hypercube-ivf/obj
+          algorithms/lsh-hypercube-ivf/bin
+        key: ${{ runner.os }}-cpp-${{ hashFiles('algorithms/lsh-hypercube-ivf/src/**', 'algorithms/lsh-hypercube-ivf/include/**') }}
+        restore-keys: |
+          ${{ runner.os }}-cpp-
+          
+    - name: Build search binary
+      run: |
+        cd algorithms/lsh-hypercube-ivf
+        make clean
+        make
+        
+    - name: Verify binary exists
+      run: |
+        cd algorithms/lsh-hypercube-ivf
+        ls -lh bin/search
+        file bin/search
+        
+    - name: Test binary help
+      run: |
+        cd algorithms/lsh-hypercube-ivf
+        ./bin/search --help || echo "Help flag test complete (exit code expected)"
+        
+    - name: Build benchmark binary
+      run: |
+        cd algorithms/lsh-hypercube-ivf
+        make build-all
+        ls -lh bin/
